@@ -1,0 +1,39 @@
+import { Meta } from '@storybook/addon-docs';
+
+<Meta title="design tokens/Intro" />
+
+# Introduction
+
+The stories under `DESIGN TOKENS` showcase the existing OpenOps theme. 
+The theme includes various design tokens such as colors, typography, spacing, and more. 
+These tokens are used consistently across all components to ensure a cohesive look and feel.
+
+## Theme Overview
+
+Our theme is designed to be flexible and customizable. It includes the following key elements:
+
+- **Colors**: A comprehensive color palette.
+- **Typography**: A set of font styles and sizes that ensure readability and accessibility.
+- **Spacing**: Consistent spacing values for margins, paddings, and gaps.
+
+## Usage
+
+Here is an example on how to apply the theme in your application:
+
+```jsx
+// tailwind.config.cjs
+const { createGlobPatternsForDependencies } = require('@nx/react/tailwind');
+const { join } = require('path');
+const baseConfig = require('../ui-components/tailwind.base.config.cjs');
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    ...(baseConfig?.content || []),
+    join(
+      __dirname,
+      '{src,pages,components,app}/**/*!(*.stories|*.spec).{ts,tsx,html}'
+    ),
+    ...createGlobPatternsForDependencies(__dirname),
+  ],
+  ...baseConfig,
+};
