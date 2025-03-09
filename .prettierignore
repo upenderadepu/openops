@@ -1,0 +1,11 @@
+# Add files here to ignore them from prettier formatting
+
+/dist
+/coverage
+
+/.nx/
+/packages/engine/webpack.config.js
+/packages/engine/test/
+/packages/ui-components/storybook-static/
+/cache/
+/node_modules/

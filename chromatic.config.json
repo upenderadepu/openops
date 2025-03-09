@@ -1,0 +1,12 @@
+{
+  "$schema": "https://www.chromatic.com/config-file.schema.json",
+  "projectId": "Project:6728aed37d68c35c74121f66",
+  "zip": true,
+  "exitZeroOnChanges": true,
+  "exitOnceUploaded": true,
+  "externals": [
+    "packages/ui-components/src/tailwind.css",
+    "packages/ui-components/tailwind.base.config.cjs"
+  ],
+  "onlyChanged": true
+}

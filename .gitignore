@@ -1,0 +1,50 @@
+#############################################
+# Dependencies
+#############################################
+node_modules
+
+#############################################
+# Compilation output and runtime
+#############################################
+/dist
+/tmp
+/.nx
+/cache
+
+
+#############################################
+# Test execution
+#############################################
+/test-results
+
+
+#############################################
+# Configuration
+#############################################
+.env
+
+#############################################
+# IDEs
+#############################################
+
+# JetBrains
+/.idea
+
+# Eclipse
+/.project
+/.classpath
+/.settings
+
+# Sublime
+/*.sublime-workspace
+
+# VSCode
+/.vscode/*
+!/.vscode/settings.json
+!/.vscode/tasks.json
+!/.vscode/launch.json
+!/.vscode/extensions.json
+
+
+#############################################
+# Please do not add rules here without a proper category.
