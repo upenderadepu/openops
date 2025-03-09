@@ -1,0 +1,26 @@
+{
+  "name": "blocks-schedule",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/blocks/schedule/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/packages/blocks/schedule",
+        "tsConfig": "packages/blocks/schedule/tsconfig.lib.json",
+        "packageJson": "packages/blocks/schedule/package.json",
+        "main": "packages/blocks/schedule/src/index.ts",
+        "assets": ["packages/blocks/schedule/*.md"],
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"]
+    }
+  },
+  "tags": []
+}

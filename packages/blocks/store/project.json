@@ -1,0 +1,26 @@
+{
+  "name": "blocks-store",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/blocks/store/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/packages/blocks/store",
+        "tsConfig": "packages/blocks/store/tsconfig.lib.json",
+        "packageJson": "packages/blocks/store/package.json",
+        "main": "packages/blocks/store/src/index.ts",
+        "assets": ["packages/blocks/store/*.md"],
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"]
+    }
+  },
+  "tags": []
+}

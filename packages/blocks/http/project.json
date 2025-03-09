@@ -1,0 +1,26 @@
+{
+  "name": "blocks-http",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/blocks/http/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/packages/blocks/http",
+        "tsConfig": "packages/blocks/http/tsconfig.lib.json",
+        "packageJson": "packages/blocks/http/package.json",
+        "main": "packages/blocks/http/src/index.ts",
+        "assets": ["packages/blocks/http/*.md"],
+        "buildableProjectDepsInPackageJsonType": "dependencies",
+        "updateBuildableProjectDepsInPackageJson": true
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"]
+    }
+  },
+  "tags": []
+}
