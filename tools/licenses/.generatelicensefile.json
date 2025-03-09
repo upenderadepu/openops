@@ -1,0 +1,16 @@
+{
+  "inputs": ["./package.json"],
+  "output": "./THIRD_PARTY_LICENSES.txt",
+  "lineEnding": "lf",
+  "ci": true,
+  "append": ["./THIRD_PARTY_LICENSES_ADDITIONAL.txt"],
+  "replace": {
+    "sax": "https://raw.githubusercontent.com/isaacs/sax-js/refs/heads/main/LICENSE",
+    "type-fest": "https://raw.githubusercontent.com/sindresorhus/type-fest/refs/heads/main/license-mit",
+    "through": "https://raw.githubusercontent.com/dominictarr/through/refs/heads/master/LICENSE.MIT",
+    "jsonlint-mod": "https://raw.githubusercontent.com/circlecell/jsonlint/refs/heads/main/license.txt",
+    "rc@1.2.8": "https://raw.githubusercontent.com/dominictarr/rc/refs/heads/master/LICENSE.MIT",
+  },
+  "exclude": [],
+  "omitVersion": false
+}
