@@ -1,0 +1,2 @@
+export const FLOW_CANVAS_Y_OFFESET = 140;
+export const TEMPLATE_CANVAS_Y_OFFESET = 20;
