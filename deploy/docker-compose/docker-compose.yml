@@ -1,0 +1,137 @@
+services:
+  nginx:
+    container_name: nginx
+    image: nginx:1.27.4
+    ports:
+      - 80:80
+    volumes:
+      - ./nginx.gateway.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      openops-tables:
+        condition: service_healthy
+      openops-analytics:
+        condition: service_healthy
+  openops-app:
+    container_name: openops-app
+    image: public.ecr.aws/openops/openops-app:${OPS_VERSION:-latest}
+    env_file: .env
+    environment:
+      OPS_COMPONENT: app
+      OPS_VERSION: ${OPS_VERSION:-latest}
+      OPS_OPENOPS_TABLES_VERSION: 0.1.2
+      OPS_ANALYTICS_VERSION: 0.1.2
+    depends_on:
+      openops-tables:
+        condition: service_healthy
+      openops-analytics:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+  openops-engine:
+    container_name: openops-engine
+    image: public.ecr.aws/openops/openops-engine:${OPS_VERSION:-latest}
+    env_file: .env
+    command: ["cp -r /var/tmp-base/. /tmp/ && node main.js"]
+    environment:
+      OPS_BASE_CODE_DIRECTORY: /tmp/codes
+      OPS_COMPONENT: engine
+      OPS_SERVER_API_URL: http://openops-app/api/
+    depends_on:
+      - openops-app
+    volumes:
+      - ${HOST_AZURE_CONFIG_DIR:-openops_azure_cli_data}:/tmp/azure
+  openops-tables:
+    container_name: openops-tables
+    image: public.ecr.aws/openops/openops-tables:0.1.6
+    environment:
+      BASEROW_PUBLIC_URL: ${OPS_OPENOPS_TABLES_PUBLIC_URL}
+      BASEROW_PRIVATE_URL: http://openops-tables
+      BASEROW_EXTRA_ALLOWED_HOSTS: '*'
+      SECRET_KEY: ${OPS_ENCRYPTION_KEY}
+      BASEROW_JWT_SIGNING_KEY: ${OPS_JWT_SECRET}
+      BASEROW_REFRESH_TOKEN_LIFETIME_HOURS: ${OPS_JWT_TOKEN_LIFETIME_HOURS}
+      BASEROW_ACCESS_TOKEN_LIFETIME_MINUTES: ${OPS_TABLES_TOKEN_LIFETIME_MINUTES}
+      SYNC_TEMPLATES_ON_STARTUP: 'false'
+      MIGRATE_ON_STARTUP: 'true'
+      DISABLE_VOLUME_CHECK: 'yes'
+      DATABASE_NAME: ${OPS_OPENOPS_TABLES_DATABASE_NAME}
+      DATABASE_HOST: ${OPS_POSTGRES_HOST}
+      DATABASE_PORT: ${OPS_POSTGRES_PORT}
+      DATABASE_USER: ${OPS_POSTGRES_USERNAME}
+      DATABASE_PASSWORD: ${OPS_POSTGRES_PASSWORD}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - 'openops_tables_data:/baserow/data'
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          '/baserow/backend/docker/docker-entrypoint.sh backend-healthcheck',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+  openops-analytics:
+    container_name: openops-analytics
+    image: public.ecr.aws/openops/openops-analytics:0.12.15
+    platform: linux/amd64 # Needed for M1 Macs until we have cross-platform CI builds(linux/adm64 and linux/arm64 images)
+    environment:
+      ADMIN_PASSWORD: ${OPS_ANALYTICS_ADMIN_PASSWORD}
+      POWERUSER_PASSWORD: ${ANALYTICS_POWERUSER_PASSWORD}
+      GUNICORN_LOGLEVEL: 'debug'
+      DATABASE_DIALECT: 'postgresql'
+      DATABASE_DB: 'analytics'
+      DATABASE_HOST: 'postgres'
+      DATABASE_PORT: '5432'
+      DATABASE_USER: ${OPS_POSTGRES_USERNAME}
+      DATABASE_PASSWORD: ${OPS_POSTGRES_PASSWORD}
+      DATABASE_HOST_ALT: ${OPS_OPENOPS_TABLES_DB_HOST}
+      SUPERSET_SECRET_KEY: ${OPS_ENCRYPTION_KEY}
+      SUPERSET_FEATURE_ALLOW_ADHOC_SUBQUERY: '${ANALYTICS_ALLOW_ADHOC_SUBQUERY}'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      openops-tables:
+        condition: service_healthy
+  postgres:
+    image: 'postgres:14.4'
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${OPS_POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${OPS_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${OPS_POSTGRES_DATABASE}
+    ports: ['5432:5432']
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${OPS_POSTGRES_USERNAME}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: 'redis:7.4.0'
+    container_name: redis
+    ports: ['6379:6379']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - 'redis_data:/data'
+volumes:
+  openops_azure_cli_data:
+  openops_tables_data:
+  postgres_data:
+  redis_data:
+networks:
+  openops:

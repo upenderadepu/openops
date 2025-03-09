@@ -1,0 +1,199 @@
+name: CI
+
+on:
+  push:
+
+env:
+  AWS_REGION: us-east-2
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  install:
+    name: Install Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lookup node_modules cache
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-cache-${{ hashFiles('package-lock.json', '.npmrc') }}
+          lookup-only: true
+          save-always: true
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --no-fund
+  lint:
+    name: Lint
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore node_modules cache
+        id: node-modules-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-cache-${{ hashFiles('package-lock.json', '.npmrc') }}
+      - name: Restore NX cache
+        uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-lint-${{ github.sha }}
+          restore-keys: nx-lint-
+      - name: Lint
+        if: steps.nx-lint-cache.outputs.cache-hit != 'true'
+        env:
+          NX_REJECT_UNKNOWN_LOCAL_CACHE: 0
+        run: |
+          npx nx run-many --target=lint --quiet
+      - name: Truncate NX cache
+        run: ./tools/truncate-nx-cache.sh
+  check-licenses:
+    name: Check Licenses
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore node_modules cache
+        id: node-modules-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-cache-${{ hashFiles('package-lock.json', '.npmrc') }}
+      - name: Check licenses
+        run: |
+          npm run license-check
+          if ! git diff --exit-code THIRD_PARTY_LICENSES.txt; then
+            echo "Please update THIRD_PARTY_LICENSES.txt by running 'npm run license-check'" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+  test:
+    strategy:
+        matrix:
+            test-suits:
+              - name: UI
+                include: ui-*,*-ui
+              - name: Blocks
+                include: blocks-*
+              - name: Server API
+                key: server-api
+                include: server-api
+              - name: Engine and Libraries
+                key: others
+                exclude: ui-*,*-ui,blocks-*,server-api
+    name: Test ${{ matrix.test-suits.name }}
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore node_modules cache
+        id: node-modules-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-cache-${{ hashFiles('package-lock.json', '.npmrc') }}
+      - name: Restore NX cache
+        uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-test-${{ matrix.test-suits.key || matrix.test-suits.name }}-${{ github.sha }}
+          restore-keys: nx-test-${{ matrix.test-suits.key || matrix.test-suits.name }}-
+          save-always: true
+      - name: Test
+        if: steps.nx-test-cache.outputs.cache-hit != 'true'
+        env:
+          NX_REJECT_UNKNOWN_LOCAL_CACHE: 0
+        run: |
+          npx nx run-many --target test --projects "${{ matrix.test-suits.include }}" --exclude "${{ matrix.test-suits.exclude }}"
+      - name: Truncate NX cache
+        run: ./tools/truncate-nx-cache.sh
+  build:
+    name: Build Project
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore node_modules cache
+        id: node-modules-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-cache-${{ hashFiles('package-lock.json', '.npmrc') }}
+      - name: Restore NX cache
+        uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-build-${{ github.sha }}
+          restore-keys: nx-build-
+      - name: Build project
+        env:
+          NX_REJECT_UNKNOWN_LOCAL_CACHE: 0
+        run: |
+          npm run prepare
+          npx nx run-many --target=build
+          ./tools/truncate-nx-cache.sh
+      - name: Save build cache
+        uses: actions/cache/save@v4
+        with:
+          path: dist
+          key: dist-${{ github.sha }}
+  build-images:
+    strategy:
+        matrix:
+            target:
+            - name: Editor
+              file: Dockerfile
+              repository: openops-app
+            - name: Engine
+              file: engine.Dockerfile
+              repository: openops-engine
+    name: Build ${{ matrix.target.name }} Image
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: dist
+          key: dist-${{ github.sha }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.ECR_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.ECR_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Format image tag parts
+        id: tag-parts
+        env:
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          echo branch=${BRANCH//[\/]/-} >> "$GITHUB_OUTPUT"
+          echo image=${{ steps.login-ecr.outputs.registry }}/${{ matrix.target.repository }} >> "$GITHUB_OUTPUT"
+          echo version=${SHA::8} >> "$GITHUB_OUTPUT"
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ matrix.target.file }}
+          build-args: VERSION=${{ steps.tag-parts.outputs.version }}
+          provenance: false
+          push: true
+          tags: |
+            ${{ steps.tag-parts.outputs.image }}:${{ github.sha }}
+            ${{ steps.tag-parts.outputs.image }}:${{ steps.tag-parts.outputs.branch }}-${{ github.sha }}
+            ${{ steps.tag-parts.outputs.image }}:${{ steps.tag-parts.outputs.branch }}-latest
+          cache-from: |
+            type=registry,ref=${{ steps.tag-parts.outputs.image }}:${{ steps.tag-parts.outputs.branch }}-cache
+            type=registry,ref=${{ steps.tag-parts.outputs.image }}:main-cache
+          cache-to: mode=max,image-manifest=true,oci-mediatypes=true,type=registry,ref=${{ steps.tag-parts.outputs.image }}:${{ steps.tag-parts.outputs.branch }}-cache
