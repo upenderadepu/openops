@@ -1,0 +1,10 @@
+[
+  {
+    "string": "string",
+    "emptyString": ""
+  },
+  {
+    "string": "",
+    "emptyString": "string"
+  }
+]
