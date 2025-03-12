@@ -4,7 +4,7 @@ import {
   Property,
   TriggerStrategy,
 } from '@openops/blocks-framework';
-import { assertNotNullOrUndefined } from '@openops/shared';
+import { assertNotNullOrUndefined, CATCH_WEBHOOK } from '@openops/shared';
 
 const message = `**Live URL:**
 \`\`\`url
@@ -34,7 +34,7 @@ enum AuthType {
   HEADER = 'header',
 }
 export const catchWebhook = createTrigger({
-  name: 'catch_webhook',
+  name: CATCH_WEBHOOK,
   displayName: 'Catch Webhook',
   description:
     'Receive incoming HTTP/webhooks using any HTTP method such as GET, POST, PUT, DELETE, etc.',
