@@ -188,7 +188,7 @@ const BuilderPage = () => {
 
   useEffect(() => {
     if (
-      memorizedSelectedStep &&
+      !memorizedSelectedStep ||
       memorizedSelectedStep.type === TriggerType.EMPTY
     ) {
       setRightSidebar(RightSideBarType.NONE);
@@ -198,6 +198,12 @@ const BuilderPage = () => {
   const { switchToDraft, isSwitchingToDraftPending } = useSwitchToDraft();
 
   const { setPanelGroupSize } = useResizablePanelGroup();
+
+  const isRightSidebarVisible =
+    rightSidebar === RightSideBarType.BLOCK_SETTINGS &&
+    !!memorizedSelectedStep &&
+    memorizedSelectedStep.type !== TriggerType.EMPTY &&
+    !isBlockLoading;
 
   return (
     <div className="flex h-screen w-screen flex-col relative">
@@ -272,8 +278,8 @@ const BuilderPage = () => {
 
             <>
               <ResizableHandle
-                disabled={rightSidebar === RightSideBarType.NONE}
-                withHandle={rightSidebar !== RightSideBarType.NONE}
+                disabled={!isRightSidebarVisible}
+                withHandle={isRightSidebarVisible}
                 onDragging={setIsDraggingHandle}
                 className="z-50 w-0"
               />
@@ -286,23 +292,20 @@ const BuilderPage = () => {
                 maxSize={60}
                 order={3}
                 className={cn('min-w-0 bg-background z-30', {
-                  [minWidthOfSidebar]: rightSidebar !== RightSideBarType.NONE,
+                  [minWidthOfSidebar]: isRightSidebarVisible,
                 })}
               >
-                {rightSidebar === RightSideBarType.BLOCK_SETTINGS &&
-                  memorizedSelectedStep &&
-                  memorizedSelectedStep.type !== TriggerType.EMPTY &&
-                  !isBlockLoading && (
-                    <StepSettingsProvider
-                      blockModel={blockModel}
-                      selectedStep={memorizedSelectedStep}
-                      key={containerKey}
-                    >
-                      <DynamicFormValidationProvider>
-                        <StepSettingsContainer />
-                      </DynamicFormValidationProvider>
-                    </StepSettingsProvider>
-                  )}
+                {isRightSidebarVisible && (
+                  <StepSettingsProvider
+                    blockModel={blockModel}
+                    selectedStep={memorizedSelectedStep}
+                    key={containerKey}
+                  >
+                    <DynamicFormValidationProvider>
+                      <StepSettingsContainer />
+                    </DynamicFormValidationProvider>
+                  </StepSettingsProvider>
+                )}
               </ResizablePanel>
             </>
           </ResizablePanelGroup>
