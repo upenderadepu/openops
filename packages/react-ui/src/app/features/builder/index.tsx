@@ -254,7 +254,13 @@ const BuilderPage = () => {
               onDragging={setIsDraggingHandle}
             />
 
-            <ResizablePanel order={2} id={RESIZABLE_PANEL_IDS.MAIN}>
+            <ResizablePanel
+              order={2}
+              id={RESIZABLE_PANEL_IDS.MAIN}
+              className={cn('min-w-[775px]', {
+                'min-w-[830px]': leftSidebar === LeftSideBarType.NONE,
+              })}
+            >
               <div ref={middlePanelRef} className="relative h-full w-full">
                 <BuilderHeader />
 
