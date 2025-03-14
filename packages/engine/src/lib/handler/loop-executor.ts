@@ -1,12 +1,15 @@
 import { Store } from '@openops/blocks-framework';
 import {
   Action,
+  ActionType,
   FlowRunStatus,
   isNil,
   LoopOnItemsAction,
   LoopStepOutput,
   LoopStepResult,
+  StepOutput,
 } from '@openops/shared';
+import cloneDeep from 'lodash-es/cloneDeep';
 import { nanoid } from 'nanoid';
 import { createContextStore } from '../services/storage.service';
 import { BaseExecutor } from './base-executor';
@@ -48,9 +51,14 @@ export const loopExecutor: BaseExecutor<LoopOnItemsAction> = {
       input: censoredInput,
     });
 
+    let pathPrefix = `${action.name}`;
+    if (executionState.currentPath.path.length > 0) {
+      pathPrefix = `${executionState.currentPath.path.join('.')}_${pathPrefix}`;
+    }
+
     const store = createContextStore({
       apiUrl: constants.internalApiUrl,
-      prefix: `Loop_${constants.flowRunId}_${action.name}`,
+      prefix: `Loop_${constants.flowRunId}_${pathPrefix}`,
       flowId: constants.flowId,
       flowRunId: constants.flowRunId,
       engineToken: constants.engineToken,
@@ -67,8 +75,12 @@ export const loopExecutor: BaseExecutor<LoopOnItemsAction> = {
       return executionState.upsertStep(action.name, stepOutput);
     }
 
-    const isFirstLoopExecution = !payload;
-    if (isFirstLoopExecution) {
+    const isCompleted = executionState.isCompleted({ stepName: action.name });
+    if (isCompleted) {
+      if (payload && !payload.path?.includes(action.name)) {
+        return executionState;
+      }
+    } else {
       const loopIterations = triggerLoopIterations(
         resolvedInput,
         executionState,
@@ -89,7 +101,7 @@ export const loopExecutor: BaseExecutor<LoopOnItemsAction> = {
       );
     }
 
-    await resumePausedIteration(
+    executionState = await resumePausedIteration(
       store,
       payload,
       executionState,
@@ -136,8 +148,9 @@ function triggerLoopIterations(
       .setCurrentPath(newCurrentPath)
       .setPauseId(newId);
 
+    const executionContextCopy = cloneDeep(newExecutionContext);
     loopIterations[i] = flowExecutor.execute({
-      executionState: newExecutionContext,
+      executionState: executionContextCopy,
       action: firstLoopAction,
       constants,
     });
@@ -180,15 +193,18 @@ async function waitForIterationsToFinishOrPause(
 
   const { iterationContext: lastIterationContext } =
     iterationResults[iterationResults.length - 1];
+
+  populateLastIterationContext(lastIterationContext, iterationResults);
+
   const executionState = lastIterationContext.setCurrentPath(
     lastIterationContext.currentPath.removeLast(),
   );
 
+  await saveIterationResults(store, actionName, iterationResults);
   if (noPausedIterations) {
     return executionState;
   }
 
-  await saveIterationResults(store, actionName, iterationResults);
   return pauseLoop(executionState);
 }
 
@@ -228,24 +244,23 @@ async function resumePausedIteration(
   constants: EngineConstants,
   firstLoopAction: Action,
   actionName: string,
-): Promise<void> {
+): Promise<FlowExecutorContext> {
   // Get which iteration is being resumed
-  const iterationKey = (await store.get(payload.path)) as string;
+  const iterationKey = await getIterationKey(store, actionName, payload.path);
+
   const previousIterationResult = (await store.get(
     iterationKey,
   )) as IterationResult;
-
-  const loopOutput = loopExecutionState.steps[actionName]
-    .output as LoopStepResult;
-  loopOutput.index = Number(previousIterationResult.index);
-  loopOutput.item = previousIterationResult.item;
 
   const newCurrentPath = loopExecutionState.currentPath.loopIteration({
     loopName: actionName,
     iteration: previousIterationResult.index - 1,
   });
-
   let newExecutionContext = loopExecutionState.setCurrentPath(newCurrentPath);
+
+  const loopStepResult = getLoopStepResult(newExecutionContext);
+  loopStepResult.index = Number(previousIterationResult.index);
+  loopStepResult.item = previousIterationResult.item;
 
   newExecutionContext = await flowExecutor.execute({
     executionState: newExecutionContext,
@@ -262,6 +277,12 @@ async function resumePausedIteration(
     previousIterationResult.item,
     store,
   );
+
+  const executionState = newExecutionContext.setCurrentPath(
+    newExecutionContext.currentPath.removeLast(),
+  );
+
+  return executionState;
 }
 
 async function storeIterationResult(
@@ -314,6 +335,88 @@ function pauseLoop(executionState: FlowExecutorContext): FlowExecutorContext {
       executionCorrelationId: executionState.pauseId,
     },
   });
+}
+
+function populateLastIterationContext(
+  lastIterationContext: FlowExecutorContext,
+  iterationResults: {
+    iterationContext: FlowExecutorContext;
+    isPaused: boolean;
+  }[],
+): void {
+  const loopStepResult = getLoopStepResult(lastIterationContext);
+  for (let i = 0; i < iterationResults.length - 1; ++i) {
+    const iteration = getIterationOutput(iterationResults[i].iterationContext);
+
+    loopStepResult.iterations[i] = iteration;
+  }
+}
+
+function getIterationOutput(
+  lastIterationContext: FlowExecutorContext,
+): Readonly<Record<string, StepOutput>> {
+  let targetMap = lastIterationContext.steps;
+  lastIterationContext.currentPath.path.forEach(([stepName, iteration]) => {
+    const stepOutput = targetMap[stepName];
+    if (!stepOutput.output || stepOutput.type !== ActionType.LOOP_ON_ITEMS) {
+      throw new Error(
+        '[ExecutionState#getTargetMap] Not instance of Loop On Items step output',
+      );
+    }
+    targetMap = stepOutput.output.iterations[iteration];
+  });
+
+  return targetMap;
+}
+
+function getLoopStepResult(
+  lastIterationContext: FlowExecutorContext,
+): LoopStepResult {
+  let targetMap = lastIterationContext.steps;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let loopStepResult: any = undefined;
+  lastIterationContext.currentPath.path.forEach(([stepName, iteration]) => {
+    const stepOutput = targetMap[stepName];
+    if (!stepOutput.output || stepOutput.type !== ActionType.LOOP_ON_ITEMS) {
+      throw new Error(
+        '[ExecutionState#getTargetMap] Not instance of Loop On Items step output',
+      );
+    }
+    targetMap = stepOutput.output.iterations[iteration];
+    loopStepResult = stepOutput.output;
+  });
+
+  return loopStepResult;
+}
+
+function buildPathKeyFromPayload(input: string, target: string): string {
+  const parts = input.split(',');
+  const filteredParts = [];
+
+  for (let i = 0; i < parts.length; i += 2) {
+    filteredParts.push(`${parts[i]},${parts[i + 1]}`);
+
+    if (parts[i] === target) {
+      break;
+    }
+  }
+
+  // "step_name,iteration.step_name,iteration"
+  return filteredParts.join('.');
+}
+
+async function getIterationKey(
+  store: Store,
+  actionName: string,
+  payloadPath: string,
+): Promise<string> {
+  let iterationKey = (await store.get(payloadPath)) as string;
+
+  if (!iterationKey) {
+    const path = buildPathKeyFromPayload(payloadPath, actionName);
+    iterationKey = (await store.get(path)) as string;
+  }
+  return iterationKey;
 }
 
 type IterationResult = {

@@ -1,3 +1,4 @@
+jest.mock('lodash-es/cloneDeep', () => jest.fn((value) => value));
 import { ExecutionVerdict, FlowExecutorContext } from '../../src/lib/handler/context/flow-execution-context'
 import { flowExecutor } from '../../src/lib/handler/flow-executor'
 import { buildCodeAction, buildSimpleLoopAction, generateMockEngineConstants } from './test-helper'
@@ -5,6 +6,13 @@ import { LoopStepOutput } from '@openops/shared'
 
 jest.mock('../../src/lib/code-block/prepare-code-block.ts', () => ({
     prepareCodeBlock: jest.fn(),
+}))
+
+jest.mock('../../src/lib/services/storage.service', () => ({
+  createContextStore: jest.fn().mockImplementation(() => ({
+    get: jest.fn(),
+    put: jest.fn(),
+  })),
 }))
 
 describe('flow with looping', () => {

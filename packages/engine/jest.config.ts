@@ -12,6 +12,9 @@ export default {
     ],
   },
   transformIgnorePatterns: ["node_modules/(?!string\-replace\-async)"],
+  moduleNameMapper: {
+    "lodash-es": "lodash"
+  },
   moduleFileExtensions: ['ts', 'js', 'html', 'node'],
   coverageDirectory: '../../coverage/packages/engine',
 };
