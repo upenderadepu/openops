@@ -99,6 +99,10 @@ If you have any questions about contributing, please reach out:
 
 We appreciate your contributions and look forward to collaborating with you\!
 
+## **🙏 Many Thanks to other OSS projects!**
+
+OpenOps leverages code from other open-source projects, such as [ActivePieces](https://github.com/activepieces/activepieces), [Baserow](https://gitlab.com/baserow/baserow), [Superset](https://github.com/apache/superset), [React Flow](https://github.com/xyflow/xyflow), and more. Huge thanks to the OSS community; we are thrilled to be a part of it and contribute back.
+
 ---
 
 *By contributing to OpenOps, you agree that your contributions will be licensed under the project's [Apache 2.0 License](./LICENSE).*
