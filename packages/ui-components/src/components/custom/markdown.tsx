@@ -9,6 +9,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import validator from 'validator';
 import { clipboardUtils } from '../../lib/clipboard-utils';
+import { COPY_PASTE_TOAST_DURATION } from '../../lib/constants';
 
 function applyVariables(markdown: string, variables: Record<string, string>) {
   return markdown
@@ -86,13 +87,13 @@ const Markdown = React.memo(
     const showCopySuccessToast = () =>
       toast({
         title: t('Copied to clipboard'),
-        duration: 3000,
+        duration: COPY_PASTE_TOAST_DURATION,
       });
 
     const showCopyFailureToast = () =>
       toast({
         title: t('Failed to copy to clipboard'),
-        duration: 3000,
+        duration: COPY_PASTE_TOAST_DURATION,
       });
 
     const copyToClipboard = (text: string) => {
