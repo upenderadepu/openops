@@ -65,3 +65,27 @@ export function getAvailableProvidersWithModels(): {
     };
   });
 }
+
+export const getAiProviderLanguageModel = async (aiConfig: {
+  provider: AiProviderEnum;
+  apiKey: string;
+  model: string;
+  providerSettings?: Record<string, unknown> | null;
+}): Promise<LanguageModelV1> => {
+  const aiProvider = getAiProvider(aiConfig.provider);
+
+  return aiProvider.createLanguageModel({
+    apiKey: aiConfig.apiKey,
+    model: aiConfig.model,
+    baseUrl: sanitizeBaseUrl(aiConfig.providerSettings),
+  });
+};
+
+const sanitizeBaseUrl = (
+  providerSettings?: Record<string, unknown> | null,
+): string | undefined => {
+  const rawBaseUrl = providerSettings?.['baseUrl'];
+  return typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== ''
+    ? rawBaseUrl
+    : undefined;
+};
