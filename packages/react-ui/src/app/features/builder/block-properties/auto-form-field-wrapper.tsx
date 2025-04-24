@@ -87,10 +87,13 @@ const FormLabelButton = ({
   onGenerateWithAIClick,
 }: FormLabelButtonProps) => {
   const { data: isAIEnabled } = flagsHooks.useFlag(FlagId.SHOW_AI_SETTINGS);
+  const readonly = useSafeBuilderStateContext((s) => s.readonly);
+
   if (
     property &&
     'supportsAI' in property &&
     property.supportsAI &&
+    !readonly &&
     isAIEnabled
   ) {
     return (
