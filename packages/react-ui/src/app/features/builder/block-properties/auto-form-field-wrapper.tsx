@@ -12,7 +12,7 @@ import {
 import { Action, FlagId, isNil, Trigger } from '@openops/shared';
 import { t } from 'i18next';
 import { Sparkles } from 'lucide-react';
-import React, { useContext, useEffect } from 'react';
+import { useCallback, useContext, useEffect } from 'react';
 import { ControllerRenderProps, useFormContext } from 'react-hook-form';
 
 import { TextInputWithMentions } from './text-input-with-mentions';
@@ -238,6 +238,16 @@ const AutoFormFieldWrapper = ({
     (state) => state.applyMidpanelAction,
   );
 
+  const onGenerateWithAIClick = useCallback(() => {
+    dispatch?.({
+      type: 'GENERATE_WITH_AI_CLICK',
+      property: {
+        ...property,
+        inputName,
+      },
+    });
+  }, [dispatch, property, inputName]);
+
   return (
     <FormItem className="flex flex-col gap-1">
       <FormLabel className="flex items-center gap-1">
@@ -251,9 +261,7 @@ const AutoFormFieldWrapper = ({
           disabled={disabled}
           dynamicViewToggled={dynamicViewToggled}
           handleDynamicValueChange={handleChange}
-          onGenerateWithAIClick={() => {
-            dispatch?.({ type: 'GENERATE_WITH_AI_CLICK', property });
-          }}
+          onGenerateWithAIClick={onGenerateWithAIClick}
         />
       </FormLabel>
 
