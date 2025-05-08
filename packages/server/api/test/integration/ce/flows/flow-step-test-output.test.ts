@@ -1,7 +1,9 @@
+import { QueueMode } from '@openops/server-shared';
 import { FlowVersionState, openOpsId } from '@openops/shared';
 import { FastifyInstance } from 'fastify';
 import { databaseConnection } from '../../../../src/app/database/database-connection';
 import { flowStepTestOutputService } from '../../../../src/app/flows/step-test-output/flow-step-test-output.service';
+import { encryptUtils } from '../../../../src/app/helper/encryption';
 import { setupServer } from '../../../../src/app/server';
 import {
   createMockFlow,
@@ -12,6 +14,7 @@ import {
 let app: FastifyInstance | null = null;
 
 beforeAll(async () => {
+  await encryptUtils.loadEncryptionKey(QueueMode.MEMORY);
   await databaseConnection().initialize();
   app = await setupServer();
 });
