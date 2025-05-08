@@ -47,6 +47,29 @@ export const flowStepTestOutputService = {
     return flowStepTestOutputRepo().save(stepOutput);
   },
 
+  async copyFromVersion({
+    fromVersionId,
+    toVersionId,
+  }: {
+    fromVersionId: FlowVersionId;
+    toVersionId: FlowVersionId;
+  }): Promise<void> {
+    const previousEntries = await flowStepTestOutputRepo().findBy({
+      flowVersionId: fromVersionId,
+    });
+
+    await Promise.all(
+      previousEntries.map((previous) =>
+        flowStepTestOutputRepo().save({
+          stepId: previous.stepId,
+          flowVersionId: toVersionId,
+          output: previous.output,
+          id: openOpsId(),
+        }),
+      ),
+    );
+  },
+
   async list(params: ListParams): Promise<FlowStepTestOutput[]> {
     const flowStepTestOutputs = await flowStepTestOutputRepo().findBy({
       flowVersionId: params.flowVersionId,
