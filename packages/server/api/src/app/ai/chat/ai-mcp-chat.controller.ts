@@ -2,6 +2,7 @@ import { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
 import { getAiProviderLanguageModel } from '@openops/common';
 import { logger } from '@openops/server-shared';
 import {
+  AiConfig,
   DeleteChatHistoryRequest,
   NewMessageRequest,
   OpenChatMCPRequest,
@@ -11,10 +12,16 @@ import {
 } from '@openops/shared';
 import {
   CoreAssistantMessage,
+  CoreMessage,
   CoreToolMessage,
+  DataStreamWriter,
+  LanguageModel,
   pipeDataStreamToResponse,
   streamText,
   TextPart,
+  ToolCallPart,
+  ToolResultPart,
+  ToolSet,
 } from 'ai';
 import { StatusCodes } from 'http-status-codes';
 import { encryptUtils } from '../../helper/encryption';
@@ -29,6 +36,8 @@ import {
   saveChatHistory,
 } from './ai-chat.service';
 import { getMcpSystemPrompt } from './prompts.service';
+
+const MAX_RECURSION_DEPTH = 5;
 
 export const aiMCPChatController: FastifyPluginAsyncTypebox = async (app) => {
   app.post(
@@ -87,26 +96,22 @@ export const aiMCPChatController: FastifyPluginAsyncTypebox = async (app) => {
       role: 'user',
       content: request.body.message,
     });
+
     const systemPrompt = await getMcpSystemPrompt();
-    logger.info(systemPrompt, 'systemPrompt');
+    const tools = await getTools();
 
     pipeDataStreamToResponse(reply.raw, {
       execute: async (dataStreamWriter) => {
-        const result = streamText({
-          model: languageModel,
-          system: systemPrompt,
+        logger.debug('Send user message to LLM.');
+        await streamMessages(
+          dataStreamWriter,
+          languageModel,
+          systemPrompt,
+          aiConfig,
           messages,
-          ...aiConfig.modelSettings,
-          async onFinish({ response }) {
-            response.messages.forEach((r) => {
-              messages.push(getResponseObject(r));
-            });
-
-            await saveChatHistory(chatId, messages);
-          },
-        });
-
-        result.mergeIntoDataStream(dataStreamWriter);
+          chatId,
+          tools,
+        );
       },
       onError: (error) => {
         return error instanceof Error ? error.message : String(error);
@@ -163,14 +168,85 @@ const DeleteChatOptions = {
   },
 };
 
-function getResponseObject(message: CoreAssistantMessage | CoreToolMessage): {
-  role: 'assistant';
-  content: string | Array<TextPart>;
-} {
-  const content = message.content;
-  if (typeof content !== 'string' && Array.isArray(content)) {
+/**
+ * Stub function for fetching tools. This function currently returns an empty ToolSet.
+ * Future implementation should populate the ToolSet with the required tools.
+ */
+async function getTools(): Promise<ToolSet> {
+  return {};
+}
+
+async function streamMessages(
+  dataStreamWriter: DataStreamWriter,
+  languageModel: LanguageModel,
+  systemPrompt: string,
+  aiConfig: AiConfig,
+  messages: CoreMessage[],
+  chatId: string,
+  tools: ToolSet,
+  recursionDepth = 0,
+): Promise<void> {
+  const result = streamText({
+    model: languageModel,
+    system: systemPrompt,
+    messages,
+    ...aiConfig.modelSettings,
+    tools,
+    toolChoice: 'auto',
+    maxRetries: 1,
+    async onFinish({ response }) {
+      response.messages.forEach((r) => {
+        messages.push(getResponseObject(r));
+      });
+
+      await saveChatHistory(chatId, messages);
+
+      const lastMessage = response.messages.at(-1);
+      if (lastMessage && lastMessage.role !== 'assistant') {
+        if (recursionDepth >= MAX_RECURSION_DEPTH) {
+          logger.warn(
+            `Maximum recursion depth (${MAX_RECURSION_DEPTH}) reached. Terminating recursion.`,
+          );
+          return;
+        }
+
+        logger.debug('Forwarding the message to LLM.');
+        await streamMessages(
+          dataStreamWriter,
+          languageModel,
+          systemPrompt,
+          aiConfig,
+          messages,
+          chatId,
+          tools,
+          recursionDepth + 1,
+        );
+      }
+    },
+  });
+
+  result.mergeIntoDataStream(dataStreamWriter);
+}
+
+function getResponseObject(
+  message: CoreAssistantMessage | CoreToolMessage,
+): CoreToolMessage | CoreAssistantMessage {
+  const { role, content } = message;
+
+  if (role === 'tool') {
+    return {
+      role: message.role,
+      content: message.content as ToolResultPart[],
+    };
+  }
+
+  if (Array.isArray(content)) {
+    let hasToolCall = false;
+
     for (const part of content) {
-      if (part.type !== 'text') {
+      if (part.type === 'tool-call') {
+        hasToolCall = true;
+      } else if (part.type !== 'text') {
         return {
           role: 'assistant',
           content: `Invalid message type received. Type: ${part.type}`,
@@ -179,8 +255,10 @@ function getResponseObject(message: CoreAssistantMessage | CoreToolMessage): {
     }
 
     return {
-      role: 'assistant',
-      content: content as TextPart[],
+      role,
+      content: hasToolCall
+        ? (content as ToolCallPart[])
+        : (content as TextPart[]),
     };
   }
 
