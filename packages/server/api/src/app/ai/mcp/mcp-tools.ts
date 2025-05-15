@@ -2,6 +2,7 @@ import { logger } from '@openops/server-shared';
 import { ToolSet } from 'ai';
 import { getDocsTools } from './docs-tools';
 import { getSupersetTools } from './superset-tools';
+import { getTablesTools } from './tables-tools';
 
 let toolSet: ToolSet | undefined;
 
@@ -12,10 +13,12 @@ export const getMCPTools = async (): Promise<ToolSet> => {
 
   const supersetTools = await safeGetTools('superset', getSupersetTools);
   const docsTools = await safeGetTools('docs', getDocsTools);
+  const tablesTools = await safeGetTools('tables', getTablesTools);
 
   toolSet = {
     ...supersetTools,
     ...docsTools,
+    ...tablesTools,
   } as ToolSet;
 
   return toolSet;
