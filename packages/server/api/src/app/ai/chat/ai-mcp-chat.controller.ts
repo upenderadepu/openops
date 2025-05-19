@@ -25,7 +25,10 @@ import {
 } from 'ai';
 import { StatusCodes } from 'http-status-codes';
 import { encryptUtils } from '../../helper/encryption';
-import { sendAiChatFailureEvent } from '../../telemetry/event-models/ai';
+import {
+  sendAiChatFailureEvent,
+  sendAiChatMessageSendEvent,
+} from '../../telemetry/event-models/ai';
 import { aiConfigService } from '../config/ai-config.service';
 import { getMCPTools } from '../mcp/mcp-tools';
 import {
@@ -138,6 +141,13 @@ export const aiMCPChatController: FastifyPluginAsyncTypebox = async (app) => {
         });
         return error instanceof Error ? error.message : String(error);
       },
+    });
+
+    sendAiChatMessageSendEvent({
+      projectId,
+      userId: request.principal.id,
+      chatId,
+      provider: aiConfig.provider,
     });
   });
 
